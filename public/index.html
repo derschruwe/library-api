@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="kk">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Электрондық кітапхана</title>
+  <style>
+    :root { --bg:#f5f7fa; --card:#fff; --text:#1f2933; --muted:#616e7c; --accent:#1d4ed8; --ok:#15803d; --bad:#b91c1c; --border:#d9e2ec; }
+    * { box-sizing: border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); }
+    header { background:#1e3a8a; color:#fff; padding:18px 24px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; }
+    header h1 { margin:0; font-size:20px; }
+    .status { display:flex; gap:8px; font-size:13px; }
+    .pill { padding:4px 10px; border-radius:999px; background:rgba(255,255,255,.15); }
+    .pill.ok::before { content:"●"; color:#4ade80; margin-right:6px; }
+    .pill.bad::before { content:"●"; color:#f87171; margin-right:6px; }
+    main { max-width:1100px; margin:24px auto; padding:0 16px; display:grid; grid-template-columns: 1fr 320px; gap:20px; }
+    @media (max-width: 860px) { main { grid-template-columns: 1fr; } }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px; }
+    h2 { margin:0 0 12px; font-size:16px; }
+    table { width:100%; border-collapse:collapse; font-size:14px; }
+    th, td { text-align:left; padding:8px 6px; border-bottom:1px solid var(--border); vertical-align:top; }
+    th { color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase; }
+    .tag { font-size:12px; padding:2px 8px; border-radius:999px; }
+    .yes { background:#dcfce7; color:var(--ok); } .no { background:#fee2e2; color:var(--bad); }
+    label { display:block; font-size:13px; color:var(--muted); margin:10px 0 4px; }
+    input { width:100%; padding:8px; border:1px solid var(--border); border-radius:6px; font-size:14px; }
+    button { cursor:pointer; border:0; border-radius:6px; padding:8px 12px; font-size:14px; }
+    .primary { background:var(--accent); color:#fff; width:100%; margin-top:14px; }
+    .ghost { background:transparent; color:var(--bad); padding:4px 6px; }
+    .link { background:transparent; color:var(--accent); padding:4px 6px; }
+    #msg { margin-top:10px; font-size:13px; white-space:pre-wrap; }
+    #msg.err { color:var(--bad); } #msg.okm { color:var(--ok); }
+    footer { text-align:center; color:var(--muted); font-size:12px; margin:24px 0; }
+    code { background:#eef2f7; padding:1px 5px; border-radius:4px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📚 Электрондық кітапхана</h1>
+    <div class="status">
+      <span id="appStatus" class="pill">App: ...</span>
+      <span id="dbStatus" class="pill">DB: ...</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Кітаптар тізімі (<span id="count">0</span>)</h2>
+      <table>
+        <thead><tr><th>ID</th><th>Атауы</th><th>Автор</th><th>Жыл</th><th>Жанр</th><th>Күйі</th><th></th></tr></thead>
+        <tbody id="rows"><tr><td colspan="7">Жүктелуде...</td></tr></tbody>
+      </table>
+    </section>
+
+    <aside class="card">
+      <h2>Жаңа кітап қосу</h2>
+      <form id="form" novalidate>
+        <label for="title">Атауы *</label><input id="title" maxlength="200" />
+        <label for="author">Автор *</label><input id="author" maxlength="150" />
+        <label for="year">Шыққан жылы</label><input id="year" type="number" />
+        <label for="genre">Жанр</label><input id="genre" maxlength="100" />
+        <button class="primary" type="submit">Қосу (POST /api/books)</button>
+      </form>
+      <div id="msg"></div>
+    </aside>
+  </main>
+
+  <footer>
+    REST API: <code>/api/books</code> · Health: <code>/health</code>, <code>/health/db</code>
+  </footer>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+    function show(text, ok) { const m = $('msg'); m.textContent = text; m.className = ok ? 'okm' : 'err'; }
+
+    async function checkHealth() {
+      try { const r = await fetch('/health'); $('appStatus').textContent = 'App: ' + r.status; $('appStatus').className = 'pill ' + (r.ok ? 'ok' : 'bad'); }
+      catch { $('appStatus').textContent = 'App: offline'; $('appStatus').className = 'pill bad'; }
+      try { const r = await fetch('/health/db'); $('dbStatus').textContent = 'DB: ' + r.status; $('dbStatus').className = 'pill ' + (r.ok ? 'ok' : 'bad'); }
+      catch { $('dbStatus').textContent = 'DB: ?'; $('dbStatus').className = 'pill bad'; }
+    }
+
+    async function load() {
+      const r = await fetch('/api/books');
+      const body = await r.json();
+      if (!r.ok) { $('rows').innerHTML = `<tr><td colspan="7">Қате ${r.status}: ${esc(body.error)}</td></tr>`; return; }
+      $('count').textContent = body.count;
+      $('rows').innerHTML = body.data.map((b) => `
+        <tr>
+          <td>${b.id}</td><td>${esc(b.title)}</td><td>${esc(b.author)}</td><td>${esc(b.year)}</td><td>${esc(b.genre)}</td>
+          <td><span class="tag ${b.available ? 'yes' : 'no'}">${b.available ? 'Қолжетімді' : 'Берілген'}</span></td>
+          <td style="white-space:nowrap">
+            <button class="link" onclick="toggle(${b.id}, ${!b.available})" title="PATCH">⇄</button>
+            <button class="ghost" onclick="del(${b.id})" title="DELETE">✕</button>
+          </td>
+        </tr>`).join('') || '<tr><td colspan="7">Жазба жоқ</td></tr>';
+    }
+
+    async function toggle(id, available) {
+      const r = await fetch('/api/books/' + id, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ available }) });
+      show(`PATCH /api/books/${id} → ${r.status}`, r.ok); load();
+    }
+
+    async function del(id) {
+      if (!confirm('Кітапты жою керек пе? (id=' + id + ')')) return;
+      const r = await fetch('/api/books/' + id, { method: 'DELETE' });
+      show(`DELETE /api/books/${id} → ${r.status}`, r.ok); load();
+    }
+
+    $('form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const payload = { title: $('title').value, author: $('author').value };
+      if ($('year').value) payload.year = Number($('year').value);
+      if ($('genre').value) payload.genre = $('genre').value;
+      const r = await fetch('/api/books', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const body = await r.json();
+      if (r.status === 201) { show(`201 Created: id=${body.id}`, true); e.target.reset(); load(); }
+      else show(`${r.status}: ${body.error}${body.details ? '\n• ' + body.details.join('\n• ') : ''}`, false);
+    });
+
+    checkHealth(); load();
+    setInterval(checkHealth, 15000);
+  </script>
+</body>
+</html>

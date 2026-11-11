@@ -1,0 +1,42 @@
+# Жергілікті орта: app + PostgreSQL + жеке желі + тұрақты volume.
+# Құпия мәндер осы файлда емес, .env файлынан алынады (.env репозиторийге кірмейді).
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      APP_ENV: docker
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${DB_HOST:-db}:5432/${POSTGRES_DB}
+      DB_SSL: "false"
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - backend
+
+networks:
+  backend:
+
+volumes:
+  pgdata:

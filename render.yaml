@@ -1,0 +1,17 @@
+# Render Blueprint: тегін Web Service.
+# Құпия DATABASE_URL мұнда жазылмайды (sync: false) — ол Render Dashboard / API арқылы беріледі.
+services:
+  - type: web
+    name: library-api
+    runtime: node
+    plan: free
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: DB_SSL
+        value: "true"
+      - key: DATABASE_URL
+        sync: false

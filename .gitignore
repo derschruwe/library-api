@@ -1,0 +1,15 @@
+# Тәуелділіктер
+node_modules/
+
+# Құпия конфигурация — репозиторийге ЕШҚАШАН жіберілмейді
+.env
+.env.*
+!.env.example
+
+# Журналдар және жүйелік файлдар
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
